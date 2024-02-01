@@ -1,0 +1,83 @@
+version: '3.8'
+
+services:
+  app-opentelemetry:
+    container_name: app-opentelemetry
+    build:
+      context: .
+      dockerfile: Dockerfile
+    labels:
+      logging: "promtail"
+      logging_jobname: "app-opentelemetry-logs"  
+    volumes:
+      - .:/var/www/html
+      - .docker/php/conf.d/local.ini:/usr/local/etc/php/conf.d/local.ini
+      - .docker/php/conf.d/error_reporting.ini:/usr/local/etc/php/conf.d/error_reporting.ini
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    mem_limit: 1024m
+    mem_reservation: 512M
+    depends_on:
+      - loki
+    networks:
+      - app-network
+
+  app-server:
+    image: nginx:alpine
+    container_name: app-server
+    labels:
+      logging: "promtail"
+      logging_jobname: "app-server-logs" 
+    restart: unless-stopped
+    tty: true
+    ports:
+      - "8000:80"
+    dns:
+      - 8.8.8.8
+      - 4.4.4.4
+    volumes:
+      - .:/var/www/html
+      - .docker/nginx/conf.d/:/etc/nginx/conf.d/
+    networks:
+      - app-network    
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - 3000:3000
+    volumes:
+      - .docker/config/grafana-datasources.yml:/etc/grafana/provisioning/datasources/datasources.yaml
+    environment:
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+      - GF_AUTH_DISABLE_LOGIN_FORM=true
+    networks:
+      - app-network    
+
+  loki:
+    image: grafana/loki:2.3.0
+    container_name: loki
+    restart: always
+    command: 
+      - "-config.file=/etc/loki/local-config.yaml"
+    ports:
+      - 3100:3100
+    networks:
+      - app-network
+
+  promtail:
+    image:  grafana/promtail:latest
+    container_name: promtail
+    volumes:
+      - .docker/config/promtail.yaml:/etc/promtail/docker-config.yaml
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: -config.file=/etc/promtail/docker-config.yaml
+    depends_on:
+      - loki
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
