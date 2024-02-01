@@ -65,18 +65,24 @@ services:
     networks:
       - app-network
 
-  promtail:
-    image:  grafana/promtail:latest
-    container_name: promtail
+  # promtail:
+  #   image:  grafana/promtail:latest
+  #   container_name: promtail
+  #   volumes:
+  #     - .docker/config/promtail.yaml:/etc/promtail/docker-config.yaml
+  #     - /var/lib/docker/containers:/var/lib/docker/containers:ro
+  #     - /var/run/docker.sock:/var/run/docker.sock
+  #   command: -config.file=/etc/promtail/docker-config.yaml
+  #   depends_on:
+  #     - loki
+  #   networks:
+  #     - app-network
+  opentelemetry-collector:
+    image: otel/opentelemetry-collector:latest
     volumes:
-      - .docker/config/promtail.yaml:/etc/promtail/docker-config.yaml
-      - /var/lib/docker/containers:/var/lib/docker/containers:ro
-      - /var/run/docker.sock:/var/run/docker.sock
-    command: -config.file=/etc/promtail/docker-config.yaml
-    depends_on:
-      - loki
+      - ./otel-config.yaml:/etc/otel-config.yaml
     networks:
-      - app-network
+      - app-network      
 
 networks:
   app-network:
